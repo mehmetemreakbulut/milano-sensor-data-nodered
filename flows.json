@@ -1,0 +1,347 @@
+[
+    {
+        "id": "331ce72154d2826c",
+        "type": "tab",
+        "label": "NodeRedEvalLab",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "69c4b098dd52eb6b",
+        "type": "chatbot-telegram-receive",
+        "z": "331ce72154d2826c",
+        "bot": "935f9cf0e4fe3503",
+        "botProduction": "299e4a9595883107",
+        "x": 110,
+        "y": 260,
+        "wires": [
+            [
+                "d056daa1b7c729bf"
+            ]
+        ]
+    },
+    {
+        "id": "b88ace843ddb96ee",
+        "type": "function",
+        "z": "331ce72154d2826c",
+        "name": "Message Parser",
+        "func": "let msg_content = msg.payload.content\n\nvar currentDate = new Date();\n\n//Since our messages already validated we just checked the content w.r.t city, forecast type and day\nif(msg_content.includes(\"Milan\")){\n    let city = \"Milan\"\n    if(msg_content.includes(\"forecast\")){\n        let weather_forecast = flow.get(\"WeatherForecast\")\n        weather_forecast = weather_forecast + 1\n        flow.set(\"WeatherForecast\", weather_forecast)\n    if(msg_content.includes(\"tomorrow\")){\n        msg.increment = 1\n    } else{\n        msg.increment = 2\n    }\n    msg.query = \"temp\"\n    } else {\n        let wind_speed = flow.get(\"WindSpeed\")\n        wind_speed = wind_speed + 1\n        flow.set(\"WindSpeed\", wind_speed)\n    if(msg_content.includes(\"tomorrow\")){\n        msg.increment = 1\n    } else{\n        msg.increment = 2\n    }\n    msg.query = \"wind\"\n    }\n\n    return [msg, null]\n} else {\n    let city = \"Rome\"\n    if(msg_content.includes(\"forecast\")){\n        let weather_forecast = flow.get(\"WeatherForecast\")\n        weather_forecast = weather_forecast + 1\n        flow.set(\"WeatherForecast\", weather_forecast)\n    if(msg_content.includes(\"tomorrow\")){\n        msg.increment = 1\n    } else{\n        msg.increment = 2\n    }\n    msg.query = \"temp\"\n    } else {\n        let wind_speed = flow.get(\"WindSpeed\")\n        wind_speed = wind_speed + 1\n        flow.set(\"WindSpeed\", wind_speed)\n    if(msg_content.includes(\"tomorrow\")){\n        msg.increment = 1\n    } else{\n        msg.increment = 2\n    }\n    msg.query = \"wind\"\n    }\n\n    return [null, msg]\n}",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 260,
+        "wires": [
+            [
+                "745daf3c831968e7"
+            ],
+            [
+                "d4603c663cd55d68"
+            ]
+        ]
+    },
+    {
+        "id": "745daf3c831968e7",
+        "type": "openweathermap",
+        "z": "331ce72154d2826c",
+        "name": "",
+        "wtype": "forecast",
+        "lon": "",
+        "lat": "",
+        "city": "Milan",
+        "country": "IT",
+        "language": "en",
+        "x": 670,
+        "y": 220,
+        "wires": [
+            [
+                "3c51a9db2d7df11b"
+            ]
+        ]
+    },
+    {
+        "id": "d4603c663cd55d68",
+        "type": "openweathermap",
+        "z": "331ce72154d2826c",
+        "name": "",
+        "wtype": "forecast",
+        "lon": "",
+        "lat": "",
+        "city": "Rome",
+        "country": "IT",
+        "language": "en",
+        "x": 670,
+        "y": 300,
+        "wires": [
+            [
+                "3c51a9db2d7df11b"
+            ]
+        ]
+    },
+    {
+        "id": "3c51a9db2d7df11b",
+        "type": "function",
+        "z": "331ce72154d2826c",
+        "name": "Closest Time Slot Finder",
+        "func": "const timeList = msg.payload;\n\nconst currentTime = new Date();\n//msg.increment is the key to tell whether we check tomorrow or 2 days\nconst tomorrow = new Date(currentTime.getTime() + (msg.increment * 24 * 60 * 60 * 1000)); // Add 1 day in milliseconds\n\nlet w_data = null;\n//we check the closest time slots in all data provided from API\n//we check it by comparing the difference in the epochs\nlet min_diff = Number.MAX_VALUE\ntimeList.forEach((element) => {\n    let time = element['dt_txt'];\n    const parsedTime = new Date(time);\n    let diff = Math.abs(parsedTime.getTime() - tomorrow.getTime()) \n    if(diff < min_diff){\n        min_diff = diff\n        w_data = element\n    }\n});\n\n//setting data\nmsg.w_data = w_data;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 910,
+        "y": 220,
+        "wires": [
+            [
+                "41cdd26c08fcb9f5"
+            ]
+        ]
+    },
+    {
+        "id": "41cdd26c08fcb9f5",
+        "type": "function",
+        "z": "331ce72154d2826c",
+        "name": "Response Creator",
+        "func": "let query = \"\"\nlet day = \"\"\nlet response = \"\"\n//get the data from api w.r.t given query from user (city, forecast type, day)\n// we use the same keys in our flow object as we use in our response message constructor for ease of use\nif(msg.query == \"temp\"){\n    query = \"weather forecast\"\n    response = msg.w_data.weather[0].description\n} else {\n    query = \"wind speed\"\n    response = msg.w_data.wind.speed\n}\n\nif(msg.increment == 1){\n    day =\"Tomorrow's\"\n} else {\n    day = \"Two days\"\n}\n\nlet new_obj = {\n    day: day,\n    query: query,\n    city: msg.location.city,\n    response: response\n}\nlet general_data = flow.get(\"general_data\")\nlet old_data = general_data[msg.location.city][day][query]\nlet extra_cont = \"\"\nif(old_data !== response){\n    general_data[msg.location.city][day][query] = response\n    flow.set(\"general_data\", general_data)\n    if(old_data!==null){\n        extra_cont = \"It changed since the last time I was asked!\"\n    }\n} else {\n    extra_cont = \"It is the same as the last time I was asked!\"\n}\n\nnew_obj[\"extra_cont\"] = extra_cont\nmsg.payload = new_obj\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 890,
+        "y": 300,
+        "wires": [
+            [
+                "7b9e0aae855e11bb"
+            ]
+        ]
+    },
+    {
+        "id": "7b9e0aae855e11bb",
+        "type": "chatbot-message",
+        "z": "331ce72154d2826c",
+        "name": "",
+        "message": [
+            {
+                "message": "{{payload.day}} {{payload.query}} for {{payload.city}} is {{payload.response}}. {{payload.extra_cont}}"
+            }
+        ],
+        "language": "none",
+        "x": 810,
+        "y": 380,
+        "wires": [
+            [
+                "60ad7b0c4c2764b4"
+            ]
+        ]
+    },
+    {
+        "id": "60ad7b0c4c2764b4",
+        "type": "chatbot-telegram-send",
+        "z": "331ce72154d2826c",
+        "bot": "935f9cf0e4fe3503",
+        "botProduction": "299e4a9595883107",
+        "track": false,
+        "passThrough": false,
+        "errorOutput": false,
+        "outputs": 0,
+        "x": 850,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "689c3742067e775f",
+        "type": "inject",
+        "z": "331ce72154d2826c",
+        "name": "Flow initialize trigger",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 40,
+        "wires": [
+            [
+                "4610ab9223879649"
+            ]
+        ]
+    },
+    {
+        "id": "4610ab9223879649",
+        "type": "function",
+        "z": "331ce72154d2826c",
+        "name": "Flow variable initializer",
+        "func": "let flow_obj = {\n    \"Milan\": {\n        \"Tomorrow's\": {\n                \"weather forecast\": null,\n                \"wind speed\": null\n        },\n        \"Two days\": {\n            \"weather forecast\": null,\n            \"wind speed\": null\n        }\n    },\n    \"Rome\":{\n        \"Tomorrow's\": {\n            \"weather forecast\": null,\n            \"wind speed\": null\n        },\n        \"Two days\": {\n            \"weather forecast\": null,\n            \"wind speed\": null\n        }\n    }\n}\nflow.set(\"general_data\", flow_obj)\n\nflow.set(\"WeatherForecast\", 0)\nflow.set(\"WindSpeed\", 0)\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 180,
+        "y": 80,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "46cacc8f56a99424",
+        "type": "inject",
+        "z": "331ce72154d2826c",
+        "name": "File Log Trigger",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 580,
+        "wires": [
+            [
+                "9a3118d3d040f85e"
+            ]
+        ]
+    },
+    {
+        "id": "ba395480881eba17",
+        "type": "file",
+        "z": "331ce72154d2826c",
+        "name": "",
+        "filename": "/data/WeatherLog.txt",
+        "filenameType": "str",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "true",
+        "encoding": "none",
+        "x": 200,
+        "y": 660,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "9a3118d3d040f85e",
+        "type": "function",
+        "z": "331ce72154d2826c",
+        "name": "Log Function",
+        "func": "let weather_forecast = flow.get(\"WeatherForecast\")\nlet wind_speed = flow.get(\"WindSpeed\")\nflow.set(\"WeatherForecast\", 0)\nflow.set(\"WindSpeed\", 0)\n\nlet new_payload = {\n    \"wind_speed\": wind_speed,\n    \"weather_forecast\": weather_forecast\n}\nmsg.payload = new_payload\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 170,
+        "y": 620,
+        "wires": [
+            [
+                "ba395480881eba17"
+            ]
+        ]
+    },
+    {
+        "id": "d056daa1b7c729bf",
+        "type": "function",
+        "z": "331ce72154d2826c",
+        "name": "Message Validator",
+        "func": "let msg_content = msg.payload.content\nif (msg_content ===\"What is tomorrow’s weather forecast in Milan?\" ||\n    msg_content ===\"What is tomorrow’s weather forecast in Rome?\"||\n    msg_content === \"What is tomorrow’s wind speed in Milan?\" ||\n    msg_content === \"What is tomorrow’s wind speed in Rome?\" ||\n    msg_content === \"What’s the expected wind speed in two days in Milan?\" ||\n    msg_content === \"What’s the expected wind speed in two days in Rome?\" ||\n    msg_content === \"What’s the weather forecast in two days in Milan?\" ||\n    msg_content === \"What’s the weather forecast in two days in Rome?\") {\n        return [msg, null]\n    }  else {\n    msg.payload.content = (\n        \"Format should be one of these commands: \\n\" + \n        \"What is tomorrow’s weather forecast in Milan? \\n\" + \n        \"What is tomorrow’s weather forecast in Rome? \\n\" +\n        \"What is tomorrow’s wind speed in Milan?\\n\" +\n        \"What is tomorrow’s wind speed in Rome?\\n\" + \n        \"What’s the expected wind speed in two days in Milan?\\n\"+\n        \"What’s the expected wind speed in two days in Rome?\\n\" +\n        \"What’s the weather forecast in two days in Milan?\\n\"+\n        \"What’s the weather forecast in two days in Rome?\"\n        )\n        return [null, msg]\n    }\n",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 310,
+        "y": 260,
+        "wires": [
+            [
+                "b88ace843ddb96ee"
+            ],
+            [
+                "8efc34d41a202bb2"
+            ]
+        ]
+    },
+    {
+        "id": "8efc34d41a202bb2",
+        "type": "chatbot-message",
+        "z": "331ce72154d2826c",
+        "name": "",
+        "message": [
+            {
+                "message": "{{payload.content}}"
+            }
+        ],
+        "language": "none",
+        "x": 270,
+        "y": 360,
+        "wires": [
+            [
+                "60ad7b0c4c2764b4"
+            ]
+        ]
+    },
+    {
+        "id": "935f9cf0e4fe3503",
+        "type": "chatbot-telegram-node",
+        "botname": "VerySmartBot",
+        "usernames": "",
+        "polling": "1000",
+        "store": "",
+        "log": "",
+        "debug": false,
+        "skipMediaFiles": false,
+        "webHook": "",
+        "connectMode": "polling",
+        "storeMessages": true,
+        "enableMissionControl": false,
+        "inspectMessages": true,
+        "chatbotId": ""
+    },
+    {
+        "id": "299e4a9595883107",
+        "type": "chatbot-telegram-node",
+        "botname": "VerySmartBot",
+        "usernames": "",
+        "polling": "1000",
+        "store": "",
+        "log": "",
+        "debug": false,
+        "skipMediaFiles": false,
+        "webHook": "",
+        "connectMode": "polling",
+        "storeMessages": true,
+        "enableMissionControl": false,
+        "inspectMessages": true,
+        "chatbotId": ""
+    }
+]
